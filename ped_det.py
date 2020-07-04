@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # d435_segmentation.py
 
 import pyrealsense2 as rs
@@ -5,7 +7,8 @@ import numpy as np
 import cv2
 import os
 import sys
-
+from hog_nms import hog_detect_ped
+from haar_bodyparts import haar_detect_body_parts
 
 if __name__ == "__main__":
     
@@ -14,17 +17,17 @@ if __name__ == "__main__":
         print("No input file specified. Using default file\n") 
         # Different video files that can be input to the program. Path is relatove
         # to current directory
-        video_file = 'video\pmb_ped_video_daytime_multiple_ped.bag'
+        video_file = 'pmb_ped_video_daytime_multiple_ped.bag'
         #video_file = 'video\pmb_ped_video_multi_distance.bag'
     else:
-        video_file = "video"+"\\"+sys.argv[1]
-
-    # Use this if we want to use absolute path
-    #video_file=dirpath+"\\"+file_name
+        #video_file = "video"+"\\"+sys.argv[1]
+        video_file = sys.argv[1]
 
     # Check if the specified file exists
     print(f'Video file is: {video_file}\n')    
     dirpath = os.getcwd()
+    # Use this if we want to use absolute path
+    video_file=dirpath+"\\"+video_file
     if not os.path.exists(video_file):
         print(f'Video file {video_file} does not exist .. check it. Exiting now')
         exit
@@ -46,18 +49,13 @@ if __name__ == "__main__":
     
     depth_scale = profile.get_device().first_depth_sensor().get_depth_scale()
     print("Depth Scale is: {:.4f}m".format(depth_scale))
-    
-    # Set the minimum and maximum distances in millimeters(MM) in which we want
-    # to detect pedestrians
-    min_valid_dep = 500
-    max_valid_dep = 5000
 
     # Below are haar cascade classifiers for detecting various body parts.
     # These are kept as optional extensions to the solution. If HoG is not
     # able to detect a pedestrians, we can run these additional classifiers
     # to see if we can detect parts of human body to decide if a pedestrian is
     # present
-    extended_processing = False
+    extended_processing = True
 
     # Stores total identified pedestrian frames count
     ped_count = 0
@@ -77,15 +75,15 @@ if __name__ == "__main__":
             # 1 - Original frame with bounding boxes added to detected pedestrians
             # 2 - Original frame with background subtraction + bounding boxes
             # 3 - Whether a pedestrian was detected in the input frame
-            col_frm, filtered_frm, found = detect_ped_with_hog(aligned_frames, frame_seq_no)
+            col_frm, filtered_frm, found = hog_detect_ped(aligned_frames, frame_seq_no)
             
             if (found):
                 # Increament pedestrian count if detected  
                 ped_count += 1
             elif extended_processing:                
-                (res_image, thresh, found) = detect_body_parts(aligned_frames, True)
-                comb_img = np.hstack((res_image, thresh))
-                cv2.imshow('All Frames', comb_img)
+                (res_image, thresh, found) = haar_detect_body_parts(aligned_frames)
+                #comb_img = np.hstack((res_image, thresh))
+                cv2.imshow('All Frames', res_image)
                 if (found):
                     ped_count += 1
             

@@ -1,100 +1,14 @@
+# -*- coding: utf-8 -*-
+
 # d435_segmentation.py
 
-import pyrealsense2 as rs
 import numpy as np
 import cv2
-import os
 from imutils.object_detection import non_max_suppression
 import imutils
 
-def detect_body_parts(frames_list):
-    global min_dep, max_dep, nbrs
-    
-    body_parts = list(['u', 'l', 'f'])
-    det_upper_body = False
-    det_lower_body = False
-    det_faces      = False
-    color_frame = np.asanyarray(frames_list.get_color_frame().get_data())
-    depth_frame = np.asanyarray(frames_list.get_depth_frame().get_data())
-    
-    gray = cv2.cvtColor(color_frame, cv2.COLOR_BGR2GRAY)
-    
-    found = False
-    scl = 1.05
-    
-    for part in body_parts:
-        
-        if found:
-            break
-        
-        dist_str = "Dist: "
-        if part == 'u':
-            if (det_upper_body):
-                bodies = upperbody_cascade.detectMultiScale(gray, scl, nbrs)
-                dist_str = "Upper "+dist_str
-            else:
-                continue
-        elif part == 'l':
-            if (det_lower_body):
-                bodies = lowerbody_cascade.detectMultiScale(gray, scl, nbrs)
-                dist_str = "Lower "+dist_str
-            else:
-                continue
-        elif part == 'f':
-            if (det_faces):
-                bodies = face_cascade.detectMultiScale(gray, scl, nbrs)
-                dist_str = "Face "+dist_str
-            else:
-                continue
-            
-        col = (0,0,255)
-        for x,y,wd,ht in bodies:
-            cx = np.uint32(x + (wd/2))
-            cy = np.uint32(y + (ht/2))
-            contour_depth = depth_frame[cy, cx]
-            if depth_in_valid_range(contour_depth):
-                col = (0,255,0)
-                found = True
-            
-            if found:
-                if (contour_depth < min_dep):
-                    min_dep = contour_depth
-                
-                if (contour_depth > max_dep):
-                    max_dep = contour_depth
-            cv2.circle(color_frame, (cx, cy), 10, col, -1)
-            cv2.rectangle(color_frame, (x,y), (x+wd, y+ht), col, 2)
-            cv2.putText(color_frame, dist_str+str(contour_depth),
-                            (x-3, y), cv2.FONT_HERSHEY_PLAIN, fontScale=1, color=(0,255,0))
-        
-        #cv2.putText(color_frame, "Min: "+str(min_dep)+"  Max: "+str(max_dep), (10,10),
-         #               cv2.FONT_HERSHEY_PLAIN, fontScale=1, color=(0,255,0))
-        
-    
-    #cv2.imshow('Color Img', color_frame)
-    #cv2.imshow('Mask / Threshold', thresh)
-    #thresh = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
-    return(color_frame, None, found)
-
-
-
 def depth_in_valid_range(depth):
     return (depth >= min_valid_dep and depth <= max_valid_dep)
-
-# This function is kept for extended processing ... need to be used.
-def do_morphing(color_frame, depth_frame):
-    
-    gray = cv2.cvtColor(color_frame, cv2.COLOR_BGR2GRAY)        
-    
-    gaussian_kernel = 3
-    gray_blur = cv2.GaussianBlur(gray, (gaussian_kernel, gaussian_kernel), 0)
-    #cv2.imshow("Gray with Thr", gray_blur)
-    return (gray_blur)
-    thresh = cv2.adaptiveThreshold(gray_blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 1)
-    kernel = np.ones((3,3), np.uint8)
-    gray = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
-    gray = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel, iterations=2)
-    return (gray)
 
 # A replacement for cv2.inRange( ). cv2 function works with uint8 values and
 # When we convert actual depth to uint8, we do rounding which loses depth
@@ -102,7 +16,7 @@ def do_morphing(color_frame, depth_frame):
 def get_depth_thresh_mask (dep_data):
     return (np.uint8(255 * np.logical_and(dep_data>=min_valid_dep, dep_data<=max_valid_dep)))
 
-def detect_ped_with_hog(aligned_frames, frame_no):
+def hog_detect_ped(aligned_frames, frame_no):
     
     # For HOG, resizing the original frame to 400 sometimes helps. Set the
     # below variable to True if resizing is to be done.
@@ -273,98 +187,13 @@ def detect_ped_with_hog(aligned_frames, frame_no):
     return (color_frame, image, found)
 
 
-if __name__ == "__main__":
-    
-    
-    dirpath = os.getcwd()
-    
-    # Different video files that can be input to the program. Path is relatove
-    # to current directory
-    video_file = 'video\pmb_ped_video_daytime_multiple_ped.bag'
-    #video_file = 'video\pmb_ped_video_multi_distance.bag'
-    
-    # Use this if we want to use absolute path
-    #video_file=dirpath+"\\"+file_name
-
-    # Check if the specified file exists
-    print(video_file)    
-    if not os.path.exists(video_file):
-        print(f'Video file {video_file} does not exist .. check it. Exiting now')
-        exit
-    else:
-        print(f'Video file {video_file} exists ... continuing to segmentation')
-    
-    config = rs.config()
-    # This specifies that we are loading pre-recorded data 
-    # rather than using a live camera.
-    config.enable_device_from_file(video_file, repeat_playback = False)
-    
-    pipeline = rs.pipeline()  # Create a pipeline
-    profile = pipeline.start(config)  # Start streaming
-    # Saving to a .bag file is done before alignment, so we need to do it when
-    # reading from .bag files too.
-    align = rs.align(rs.stream.color)
-    
-    depth_scale = profile.get_device().first_depth_sensor().get_depth_scale()
-    print("Depth Scale is: {:.4f}m".format(depth_scale))
-    
-    # Set the minimum and maximum distances in millimeters(MM) in which we want
-    # to detect pedestrians
-    min_valid_dep = 500
-    max_valid_dep = 5000
-
-    # Below are haar cascade classifiers for detecting various body parts.
-    # These are kept as optional extensions to the solution. If HoG is not
-    # able to detect a pedestrians, we can run these additional classifiers
-    # to see if we can detect parts of human body to decide if a pedestrian is
-    # present
-    extended_processing = False
-    face_cascade = cv2.CascadeClassifier('xml/haarcascade_frontalface_default.xml')
-    upperbody_cascade = cv2.CascadeClassifier('xml/haarcascade_upperbody.xml')
-    lowerbody_cascade = cv2.CascadeClassifier('xml/haarcascade_lowerbody.xml')
-
-    # Initialize the HOG feature descriptor along with its SVM classifier
-    # for detecting pedestrians    
-    hog = cv2.HOGDescriptor() 
-    hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
-    
-    # Stores total identified pedestrian frames count
-    ped_count = 0
-    
-    # Stores the total processed frames count
-    frame_seq_no = 0
-    
-    while True: # Loop over the images until we decide to quit.
-        # Get the next frameset.
-        try:
-            frame_seq_no += 1
-            frames = pipeline.wait_for_frames()
         
-            aligned_frames = align.process(frames)
-            
-            # Call the method to identify pedestrians. 3 values are returned
-            # 1 - Original frame with bounding boxes added to detected pedestrians
-            # 2 - Original frame with background subtraction + bounding boxes
-            # 3 - Whether a pedestrian was detected in the input frame
-            col_frm, filtered_frm, found = detect_ped_with_hog(aligned_frames, frame_seq_no)
-            
-            if (found):
-                # Increament pedestrian count if detected  
-                ped_count += 1
-            elif extended_processing:                
-                (res_image, thresh, found) = detect_body_parts(aligned_frames, True)
-                comb_img = np.hstack((res_image, thresh))
-                cv2.imshow('All Frames', comb_img)
-                if (found):
-                    ped_count += 1
-            
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-        except(RuntimeError):
-            print("End of file reached... stopping now")
-            break
-        
-    pipeline.stop()
-    cv2.destroyAllWindows()
-    print(f"Released all devices. Processed_Frames, Ped  count: {frame_seq_no, ped_count}")
-    print(f'Accuracy - {ped_count/frame_seq_no*100}')
+# Set the minimum and maximum distances in millimeters(MM) in which we want
+# to detect pedestrians
+min_valid_dep = 500
+max_valid_dep = 5000
+
+# Initialize the HOG feature descriptor along with its SVM classifier
+# for detecting pedestrians    
+hog = cv2.HOGDescriptor() 
+hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
