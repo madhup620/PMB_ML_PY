@@ -1,5 +1,5 @@
 # PMB_ML_PY
-Pedestrian detection, distance estimation using Python, OpenCV, Stereo camera
+Pedestrian detection, distance estimation using Python, OpenCV, Stereo camera.
 You can use an input file or a direct camera (stereo / depth camera) connected to the system.
 In my work, I have used an Intel realsense D435 camera.
 Algorithms:
