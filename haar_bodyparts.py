@@ -3,6 +3,7 @@
 # d435_segmentation.py
 import numpy as np
 import cv2
+import mylib
 
 def haar_detect_body_parts(frames_list):
     global min_dep, max_dep, nbrs
@@ -49,7 +50,7 @@ def haar_detect_body_parts(frames_list):
             cx = np.uint32(x + (wd/2))
             cy = np.uint32(y + (ht/2))
             contour_depth = depth_frame[cy, cx]
-            if depth_in_valid_range(contour_depth):
+            if mylib.depth_in_valid_range(contour_depth):
                 col = (0,255,0)
                 found = True
             
@@ -72,20 +73,6 @@ def haar_detect_body_parts(frames_list):
     #cv2.imshow('Mask / Threshold', thresh)
     #thresh = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
     return(color_frame, None, found)
-
-# Set the minimum and maximum distances in millimeters(MM) in which we want
-# to detect pedestrians
-min_valid_dep = 500
-max_valid_dep = 5000
-
-def depth_in_valid_range(depth):
-    return (depth >= min_valid_dep and depth <= max_valid_dep)
-
-# A replacement for cv2.inRange( ). cv2 function works with uint8 values and
-# When we convert actual depth to uint8, we do rounding which loses depth
-# information to some extent
-def get_depth_thresh_mask (dep_data):
-    return (np.uint8(255 * np.logical_and(dep_data>=min_valid_dep, dep_data<=max_valid_dep)))
 
 # Init the haar classifiers for face, lowerbody & upperbody parts
 face_cascade = cv2.CascadeClassifier('xml/haarcascade_frontalface_default.xml')

@@ -6,15 +6,7 @@ import numpy as np
 import cv2
 from imutils.object_detection import non_max_suppression
 import imutils
-
-def depth_in_valid_range(depth):
-    return (depth >= min_valid_dep and depth <= max_valid_dep)
-
-# A replacement for cv2.inRange( ). cv2 function works with uint8 values and
-# When we convert actual depth to uint8, we do rounding which loses depth
-# information to some extent
-def get_depth_thresh_mask (dep_data):
-    return (np.uint8(255 * np.logical_and(dep_data>=min_valid_dep, dep_data<=max_valid_dep)))
+import mylib
 
 def hog_detect_ped(aligned_frames, frame_no):
     
@@ -39,7 +31,7 @@ def hog_detect_ped(aligned_frames, frame_no):
     gaussian_kernel = 3
     gray_image = cv2.GaussianBlur(gray_image, (gaussian_kernel, gaussian_kernel), 0)
     if display_filtered_img:
-        image = cv2.bitwise_and(color_frame, color_frame, mask=get_depth_thresh_mask(depth_frame))
+        image = cv2.bitwise_and(color_frame, color_frame, mask=mylib.get_depth_thresh_mask(depth_frame))
     else:
         image = [0]
     
@@ -96,7 +88,7 @@ def hog_detect_ped(aligned_frames, frame_no):
         # Perform background subtraction - Remove all depth pixels which are
         # beyond Min & Max boundaries. Result is a pixel MASK that are
         # supposed to belong to the pedestrian
-        dep_thr = get_depth_thresh_mask(dep_data)
+        dep_thr = mylib.get_depth_thresh_mask(dep_data)
         
         # Apply the maxk on depth pixel data
         valid_dep = cv2.bitwise_and(dep_data, dep_data, mask=dep_thr)
@@ -134,7 +126,7 @@ def hog_detect_ped(aligned_frames, frame_no):
             contour_depth = med_dep_act
         
         # Check if the calculated MEDIAN depth is in required range
-        dep_in_rng =  depth_in_valid_range(contour_depth)
+        dep_in_rng =  mylib.depth_in_valid_range(contour_depth)
         
         if dep_in_rng:
             #print(f"InRange: Box Dim(X.Y): {xwidth, yB-yA} -- \
@@ -186,12 +178,6 @@ def hog_detect_ped(aligned_frames, frame_no):
     
     return (color_frame, image, found)
 
-
-        
-# Set the minimum and maximum distances in millimeters(MM) in which we want
-# to detect pedestrians
-min_valid_dep = 500
-max_valid_dep = 5000
 
 # Initialize the HOG feature descriptor along with its SVM classifier
 # for detecting pedestrians    
